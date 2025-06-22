@@ -1,5 +1,6 @@
 {
   "name": "spray-calculator-backend",
+  "type": "module",
   "version": "1.0.0",
   "description": "Backend API untuk perhitungan spray calculation",
   "main": "app.js",
