@@ -1,4 +1,5 @@
-import {safeNumber} from '../utils/helpers.js';
+//import {safeNumber} from '../utils/helpers.js';
+const safeNumber = require('../utils/helpers.js');
 
 // Fungsi untuk menghitung area sprayed
 function calculateAreaSprayed(hectares, averageSwath, averageRowSpace) {
@@ -193,7 +194,6 @@ function calculateSprayData(inputData) {
     return objectToReturn;
 }
 
-export {
-    calculateSprayData 
-};
+module.exports = {
+    calculateSprayData};
  

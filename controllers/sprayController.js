@@ -1,4 +1,4 @@
-import { calculateSprayData } from '../services/calculationService.js';
+const { calculateSprayData } = require('../services/calculationService.js');
 
 const calculateSpray = (req, res) => {
     try {
@@ -28,7 +28,6 @@ const testEndpoint = (req, res) => {
             memory: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB used`,
             timestamp: new Date().toISOString(),
             endpoints: {
-                'GET /info': 'API information',
                 'GET /test': 'Health check',
                 'POST /calculate-spray': 'Main calculation'
             }
@@ -36,7 +35,7 @@ const testEndpoint = (req, res) => {
     });
 };
 
-export default {
+module.exports = {
     calculateSpray,
     testEndpoint
 };

@@ -5,6 +5,4 @@ function safeNumber(value) {
     return parseFloat(value) || 0;
 }
 
-export  {
-    safeNumber
-};
+module.exports = safeNumber;

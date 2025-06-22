@@ -1,8 +1,8 @@
 // Import dependencies
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import sprayController from './controllers/sprayController.js';
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const sprayController = require('./controllers/sprayController.js');
 
 // Load environment variables
 dotenv.config();
@@ -52,6 +52,15 @@ app.use(express.json());
 
 app.post('/calculate-spray', sprayController.calculateSpray);
 app.get('/test', sprayController.testEndpoint);
+app.get('/cors-test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'CORS is working!',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString(),
+    corsEnabled: true
+  });
+});
 
 app.get('*', (req, res) => {
     res.status(404).json({  
@@ -67,4 +76,4 @@ app.listen(port, () => {
     console.log(`API info: http://localhost:${port}/info`);
 });
 
-export default app;
+module.exports = app;
