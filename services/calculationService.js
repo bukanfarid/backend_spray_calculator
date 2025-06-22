@@ -39,14 +39,17 @@ function calculateProductUsage(rate, totalAreaSprayed, totalWater, cf, unit) {
 // Main calculation function
 function calculateSprayData(inputData) {
     // Ambil data dengan safe defaults
-    const blocks = inputData.blocks || [];
-    const products = inputData.products || [];
+    const blocks = Array.isArray(inputData.blocks) ? inputData.blocks : [];
+    const products = Array.isArray(inputData.products) ?  inputData.products : [];
     const averageRowSpace = safeNumber(inputData.average_row_space);
     const averageSwath = safeNumber(inputData.average_swath);
     const waterSprayedInput = safeNumber(inputData.water_sprayed_input);
     const tankCapacity = safeNumber(inputData.tank_capacity);
-    const adjustment = safeNumber(inputData.adjustment);
-    
+    const adjustment = safeNumber(inputData.adjustment);  
+
+    // Just random keys, not processed yet saved
+    const additionalKeys = Object.keys(inputData).filter(key => !['blocks', 'products', 'average_row_space', 'average_swath', 'water_sprayed_input', 'water_sprayed_input_unit', 'tank_capacity', 'adjustment', 'application_method'].includes(key));
+
     // Hitung data untuk setiap block
     const calculatedBlocks = blocks.map(block => {
         const hectares = safeNumber(block.hectares);
@@ -154,7 +157,7 @@ function calculateSprayData(inputData) {
     });
     
     // Siapkan output
-    return {
+    let objectToReturn =  {
         blocks: calculatedBlocks,
         application_method: inputData.application_method || "Foliar",
         average_row_space: averageRowSpace,
@@ -179,9 +182,18 @@ function calculateSprayData(inputData) {
         },
         products: calculatedProducts
     };
+
+    // Add additional keys if exists
+    if (additionalKeys.length > 0) {
+        additionalKeys.forEach(key => {
+            objectToReturn[key] = inputData[key];
+        });
+    }
+
+    return objectToReturn;
 }
 
-export default {
+export {
     calculateSprayData 
 };
  
