@@ -1,5 +1,6 @@
-//import {safeNumber} from '../utils/helpers.js';
+// services/calculationService.js - Updated with Special Unit Detection
 const safeNumber = require('../utils/helpers.js');
+const { isSpecialUnit, analyzeUnit } = require('../utils/unitDetector.js');
 
 // Fungsi untuk menghitung area sprayed
 function calculateAreaSprayed(hectares, averageSwath, averageRowSpace) {
@@ -18,10 +19,16 @@ function calculateTanksRequired(totalWater, tankCapacity) {
     return totalWater / tankCapacity;
 }
 
-// Fungsi untuk menghitung product usage berdasarkan unit type
+// Enhanced product usage calculation with special unit detection
 function calculateProductUsage(rate, totalAreaSprayed, totalWater, cf, unit) {
     cf = cf || 1; // default cf = 1
     
+    // 🆕 CHECK FOR SPECIAL UNITS FIRST
+    if (isSpecialUnit(unit)) {
+        return null; // Return null for special units not yet implemented
+    }
+    
+    // Existing calculation logic for implemented units
     if (unit.includes('/ha')) {
         // Untuk unit per hectare (L/ha, kg/ha, g/ha, dll)
         return cf * rate * totalAreaSprayed;
@@ -32,26 +39,159 @@ function calculateProductUsage(rate, totalAreaSprayed, totalWater, cf, unit) {
         // Untuk unit per L (g/L, mL/L, kg/L)
         return cf * rate * totalWater;
     } else {
-        // Default fallback
+        // Default fallback for unknown units 
         return cf * rate * totalAreaSprayed;
     }
+}
+
+// Enhanced product result builder
+function buildProductResult(product, totalUsedNumeric, totalAreaSprayed, adjustment, adjustedNumberTankRequired) {
+    const rate = safeNumber(product.rate);
+    const cf = safeNumber(product.cf) || 1;
+    const unit = product.unit || '';
+    const displayUnit = product.base_unit === 'kg' ? 'kg' : 'L';
+    
+    // 🆕 HANDLE NULL VALUES (Special units)
+    if (totalUsedNumeric === null) {
+        return {
+            spray_product_id: product.spray_product_id,
+            product_id: product.product_id,
+            base_unit: product.base_unit,
+            base_unit_description: product.base_unit_description,
+            rate: rate,
+            unit: unit,
+            unit_decription: product.unit_decription,
+            cf: cf,
+            total_used: {
+                numeric: null,
+                unit: displayUnit,
+                status: 'not_implemented',
+                message: `Special unit '${unit}' is not yet supported`
+            },
+            total_used_per_ha: {
+                numeric: null,
+                unit: displayUnit,
+                status: 'not_implemented'
+            },
+            adjusted: {
+                total_used: {
+                    numeric: null,
+                    unit: displayUnit,
+                    status: 'not_implemented'
+                },
+                total_used_per_ha: {
+                    numeric: null,
+                    unit: displayUnit,
+                    status: 'not_implemented'
+                },
+                total_used_full_tank: {
+                    numeric: null,
+                    unit: displayUnit,
+                    status: 'not_implemented'
+                },
+                total_used_part_tank: {
+                    numeric: null,
+                    unit: displayUnit,
+                    status: 'not_implemented'
+                }
+            },
+            unit_analysis: analyzeUnit(unit)
+        };
+    }
+    
+    // 🆕 HANDLE NORMAL CALCULATIONS
+    // Convert ke unit yang benar (kg atau L berdasarkan base_unit)
+    if (unit.includes('g/') && product.base_unit === 'kg') {
+        totalUsedNumeric = totalUsedNumeric / 1000; // convert g ke kg
+    } else if (unit.includes('mL/') && product.base_unit === 'L') {
+        totalUsedNumeric = totalUsedNumeric / 1000; // convert mL ke L
+    }
+    
+    // Total per hectare
+    const totalUsedPerHa = totalAreaSprayed === 0 ? 0 : totalUsedNumeric / totalAreaSprayed;
+    
+    // Adjusted calculations
+    const adjustedTotalUsed = totalUsedNumeric * (1 + adjustment / 100);
+    const adjustedTotalUsedPerHa = totalUsedPerHa * (1 + adjustment / 100);
+    
+    // Calculate per tank usage
+    const fullTanks = Math.floor(adjustedNumberTankRequired);
+    const partTank = adjustedNumberTankRequired - fullTanks;
+    
+    const totalUsedFullTank = adjustedNumberTankRequired === 0 ? 0 : adjustedTotalUsed / adjustedNumberTankRequired;
+    const totalUsedPartTank = partTank === 0 ? 0 : adjustedTotalUsed * (partTank / adjustedNumberTankRequired);
+    
+    return {
+        spray_product_id: product.spray_product_id,
+        product_id: product.product_id,
+        base_unit: product.base_unit,
+        base_unit_description: product.base_unit_description,
+        rate: rate,
+        unit: unit,
+        unit_decription: product.unit_decription,
+        cf: cf,
+        total_used: {
+            numeric: parseFloat(totalUsedNumeric.toFixed(2)),
+            unit: displayUnit,
+            status: 'calculated'
+        },
+        total_used_per_ha: {
+            numeric: parseFloat(totalUsedPerHa.toFixed(2)),
+            unit: displayUnit,
+            status: 'calculated'
+        },
+        adjusted: {
+            total_used: {
+                numeric: parseFloat(adjustedTotalUsed.toFixed(2)),
+                unit: displayUnit,
+                status: 'calculated'
+            },
+            total_used_per_ha: {
+                numeric: parseFloat(adjustedTotalUsedPerHa.toFixed(2)),
+                unit: displayUnit,
+                status: 'calculated'
+            },
+            total_used_full_tank: {
+                numeric: parseFloat(totalUsedFullTank.toFixed(2)),
+                unit: displayUnit,
+                status: 'calculated'
+            },
+            total_used_part_tank: {
+                numeric: parseFloat(totalUsedPartTank.toFixed(2)),
+                unit: displayUnit,
+                status: 'calculated'
+            }
+        },
+        unit_analysis: analyzeUnit(unit)
+    };
 }
 
 // Main calculation function
 function calculateSprayData(inputData) {
     // Ambil data dengan safe defaults
     const blocks = Array.isArray(inputData.blocks) ? inputData.blocks : [];
-    const products = Array.isArray(inputData.products) ?  inputData.products : [];
+    const products = Array.isArray(inputData.products) ? inputData.products : [];
     const averageRowSpace = safeNumber(inputData.average_row_space);
     const averageSwath = safeNumber(inputData.average_swath);
     const waterSprayedInput = safeNumber(inputData.water_sprayed_input);
     const tankCapacity = safeNumber(inputData.tank_capacity);
-    const adjustment = safeNumber(inputData.adjustment);  
+    const adjustment = safeNumber(inputData.adjustment);
+
+    // 🆕 LOG SPECIAL UNITS DETECTED
+    const specialUnitsDetected = products.filter(product => isSpecialUnit(product.unit));
+    // if (specialUnitsDetected.length > 0) {
+    //     specialUnitsDetected.forEach(product => {
+    //         console.log(`   - Product ${product.product_id}: ${product.unit}`);
+    //     });
+    // }
 
     // Just random keys, not processed yet saved
-    const additionalKeys = Object.keys(inputData).filter(key => !['blocks', 'products', 'average_row_space', 'average_swath', 'water_sprayed_input', 'water_sprayed_input_unit', 'tank_capacity', 'adjustment', 'application_method'].includes(key));
+    const additionalKeys = Object.keys(inputData).filter(key => 
+        !['blocks', 'products', 'average_row_space', 'average_swath', 'water_sprayed_input', 
+          'water_sprayed_input_unit', 'tank_capacity', 'adjustment', 'application_method'].includes(key)
+    );
 
-    // Hitung data untuk setiap block
+    // Hitung data untuk setiap block (unchanged)
     const calculatedBlocks = blocks.map(block => {
         const hectares = safeNumber(block.hectares);
         const hectaresSpraied = calculateAreaSprayed(hectares, averageSwath, averageRowSpace);
@@ -75,7 +215,7 @@ function calculateSprayData(inputData) {
         };
     });
     
-    // Hitung total untuk semua blocks
+    // Hitung total untuk semua blocks (unchanged)
     const totalArea = calculatedBlocks.reduce((sum, block) => sum + block.hectares, 0);
     const totalAreaSprayed = calculatedBlocks.reduce((sum, block) => sum + block.hectares_sprayed, 0);
     const totalWater = totalArea * waterSprayedInput;
@@ -88,77 +228,35 @@ function calculateSprayData(inputData) {
     // Hitung water per 100m
     const waterSprayedPer100m = averageRowSpace === 0 ? 0 : (averageRowSpace / 100) * waterSprayedInput;
     
-    // Hitung products
+    // 🆕 ENHANCED PRODUCT CALCULATIONS
     const calculatedProducts = products.map(product => {
         const rate = safeNumber(product.rate);
         const cf = safeNumber(product.cf) || 1;
         const unit = product.unit || '';
         
-        // Hitung total usage
-        let totalUsedNumeric = calculateProductUsage(rate, totalAreaSprayed, totalWater, cf, unit);
+        // Calculate total usage (may return null for special units)
+        const totalUsedNumeric = calculateProductUsage(rate, totalAreaSprayed, totalWater, cf, unit);
         
-        // Convert ke unit yang benar (kg atau L berdasarkan base_unit)
-        let displayUnit = product.base_unit === 'kg' ? 'kg' : 'L';
-        if (unit.includes('g/') && product.base_unit === 'kg') {
-            totalUsedNumeric = totalUsedNumeric / 1000; // convert g ke kg
-        } else if (unit.includes('mL/') && product.base_unit === 'L') {
-            totalUsedNumeric = totalUsedNumeric / 1000; // convert mL ke L
-        }
-        
-        // Total per hectare
-        const totalUsedPerHa = totalAreaSprayed === 0 ? 0 : totalUsedNumeric / totalAreaSprayed;
-        
-        // Adjusted calculations
-        const adjustedTotalUsed = totalUsedNumeric * (1 + adjustment / 100);
-        const adjustedTotalUsedPerHa = totalUsedPerHa * (1 + adjustment / 100);
-        
-        // Calculate per tank usage
-        const fullTanks = Math.floor(adjustedNumberTankRequired);
-        const partTank = adjustedNumberTankRequired - fullTanks;
-        
-        const totalUsedFullTank = adjustedTotalUsed / adjustedNumberTankRequired;
-        const totalUsedPartTank = partTank === 0 ? 0 : adjustedTotalUsed * (partTank / adjustedNumberTankRequired);
-        
-        return {
-            spray_product_id: product.spray_product_id,
-            product_id: product.product_id,
-            base_unit: product.base_unit,
-            base_unit_description: product.base_unit_description,
-            rate: rate,
-            unit: unit,
-            unit_decription: product.unit_decription,
-            cf: cf,
-            total_used: {
-                numeric: parseFloat(totalUsedNumeric.toFixed(2)),
-                unit: displayUnit
-            },
-            total_used_per_ha: {
-                numeric: parseFloat(totalUsedPerHa.toFixed(2)),
-                unit: displayUnit
-            },
-            adjusted: {
-                total_used: {
-                    numeric: parseFloat(adjustedTotalUsed.toFixed(2)),
-                    unit: displayUnit
-                },
-                total_used_per_ha: {
-                    numeric: parseFloat(adjustedTotalUsedPerHa.toFixed(2)),
-                    unit: displayUnit
-                },
-                total_used_full_tank: {
-                    numeric: parseFloat(totalUsedFullTank.toFixed(2)),
-                    unit: displayUnit
-                },
-                total_used_part_tank: {
-                    numeric: parseFloat(totalUsedPartTank.toFixed(2)),
-                    unit: displayUnit
-                }
-            }
-        };
+        // Build enhanced product result with null handling
+        return buildProductResult(product, totalUsedNumeric, totalAreaSprayed, adjustment, adjustedNumberTankRequired);
     });
     
+    // 🆕 ADD UNIT ANALYSIS SUMMARY
+    const unitAnalysisSummary = {
+        total_products: products.length,
+        implemented_units: calculatedProducts.filter(p => p.total_used.numeric !== null).length,
+        special_units_detected: calculatedProducts.filter(p => p.total_used.numeric === null).length,
+        special_units_list: calculatedProducts
+            .filter(p => p.total_used.numeric === null)
+            .map(p => ({
+                product_id: p.product_id,
+                unit: p.unit,
+                message: p.total_used.message
+            }))
+    };
+    
     // Siapkan output
-    let objectToReturn =  {
+    let objectToReturn = {
         blocks: calculatedBlocks,
         application_method: inputData.application_method || "Foliar",
         average_row_space: averageRowSpace,
@@ -181,7 +279,9 @@ function calculateSprayData(inputData) {
             number_tank_required_full: Math.floor(adjustedNumberTankRequired),
             number_tank_required_part: parseFloat((adjustedNumberTankRequired - Math.floor(adjustedNumberTankRequired)).toFixed(2))
         },
-        products: calculatedProducts
+        products: calculatedProducts,
+        // 🆕 NEW: Unit analysis summary
+        unit_analysis_summary: unitAnalysisSummary
     };
 
     // Add additional keys if exists
@@ -195,5 +295,5 @@ function calculateSprayData(inputData) {
 }
 
 module.exports = {
-    calculateSprayData};
- 
+    calculateSprayData
+};
