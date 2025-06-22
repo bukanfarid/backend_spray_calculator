@@ -133,7 +133,7 @@ function calculateSprayData(inputData) {
         const fullTanks = Math.floor(adjustedNumberTankRequired);
         const partTank = adjustedNumberTankRequired - fullTanks;
         
-        const totalUsedFullTank = fullTanks === 0 ? 0 : adjustedTotalUsed * (fullTanks / adjustedNumberTankRequired);
+        const totalUsedFullTank = adjustedTotalUsed / adjustedNumberTankRequired;
         const totalUsedPartTank = partTank === 0 ? 0 : adjustedTotalUsed * (partTank / adjustedNumberTankRequired);
         
         return {
